@@ -33,10 +33,10 @@ func (fsl *FsLayers) hash(hasher hash.Hash) {
 
 	// Add base image values.
 	if fsl.Base != nil {
-		values = append(values, []string{
+		values = append(values,
 			fsl.Base.Domain, fsl.Base.Path,
 			fsl.Base.Version, fsl.Base.Checksum,
-		}...)
+		)
 	}
 
 	// Add additional layer checksums.

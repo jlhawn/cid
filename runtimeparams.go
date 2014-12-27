@@ -1,7 +1,6 @@
 package cid
 
 import (
-	"fmt"
 	"hash"
 	"sort"
 	"strconv"
@@ -26,13 +25,13 @@ type RuntimeParams struct {
 // PortSpec represents a port which a container
 // runtime should expose to a containers network.
 type PortSpec struct {
-	Protocol string `json:"protocol"`
 	Port     string `json:"port"`
+	Protocol string `json:"protocol"`
 }
 
 func (rp *RuntimeParams) hash(hasher hash.Hash) {
 	// Compute the number of strings we will be hashing.
-	length := 6 + len(rp.Volumes) + len(rp.Ports)
+	length := 6 + len(rp.Volumes) + 2*len(rp.Ports)
 	length += len(rp.Entrypoint) + len(rp.Command) + 2*len(rp.Environment)
 
 	// Make a slice that has sufficient capacity.
@@ -47,26 +46,28 @@ func (rp *RuntimeParams) hash(hasher hash.Hash) {
 		rp.WorkingDirectory,
 	)
 
-	// Normalize ports as <portnum>/<protocol> and ensure
-	// they are in sorted order without duplicates.
-	portMap := make(map[string]struct{}, len(rp.Ports))
+	// Ensure ports are in sorted order without duplicates.
+	portMap := make(map[PortSpec]struct{}, len(rp.Ports))
 	for _, port := range rp.Ports {
-		key := fmt.Sprintf("%s/%s", port.Port, port.Protocol)
-		portMap[key] = struct{}{}
+		portMap[port] = struct{}{}
 	}
-	ports := make([]string, 0, len(portMap))
-	for key := range portMap {
-		ports = append(ports, key)
+	ports := make(portSpecSlice, 0, len(portMap))
+	for port := range portMap {
+		ports = append(ports, port)
 	}
 
 	// Sort ports.
-	sort.Strings(ports)
+	sort.Sort(ports)
+
+	// Add each portSpec port, protocol.
+	for _, port := range ports {
+		values = append(values, port.Port, port.Protocol)
+	}
 
 	// Sort volumes.
 	sort.Strings(rp.Volumes)
 
-	// Add port, volumes, entrypoint, and command.
-	values = append(values, ports...)
+	// Add volumes, entrypoint, and command.
 	values = append(values, rp.Volumes...)
 	values = append(values, rp.Entrypoint...)
 	values = append(values, rp.Command...)
@@ -87,4 +88,26 @@ func (rp *RuntimeParams) hash(hasher hash.Hash) {
 	for _, value := range values {
 		hasher.Write([]byte(value))
 	}
+}
+
+// Type for sorting PortSpec structs.
+type portSpecSlice []PortSpec
+
+func (pss portSpecSlice) Len() int {
+	return len(pss)
+}
+
+func (pss portSpecSlice) Less(i, j int) bool {
+	portSpecA := pss[i]
+	portSpecB := pss[j]
+
+	if portSpecA.Port == portSpecB.Port {
+		return portSpecA.Protocol < portSpecB.Protocol
+	}
+
+	return portSpecA.Port < portSpecB.Port
+}
+
+func (pss portSpecSlice) Swap(i, j int) {
+	pss[i], pss[j] = pss[j], pss[i]
 }

@@ -29,10 +29,35 @@ type Image struct {
 	ExtendedMetadataRaw json.RawMessage        `json:"extendedMetadata"`
 }
 
-func (img *Image) normalForm() string {
+// NormalForm returns the name of this image in Normal Form:
+//
+//     example.com/foo/bar/baz/linux-amd64-3.1.4-a.159
+//     \_________/ \_________/ \___/ \___/ \_________/
+//          |           |        |     |        |
+//        domain       path     os   arch    version
+//
+func (img *Image) NormalForm() string {
 	return fmt.Sprintf("%s/%s/%s-%s-%s",
 		img.Domain, img.Path, img.OS, img.Arch, img.Version,
 	)
+}
+
+// EncodeManifest marshals the image manifest into a memory buffer.
+func (img *Image) EncodeManifest() (data []byte, err error) {
+	if err = img.encodeExtendedMetadata(); err != nil {
+		return
+	}
+
+	return json.Marshal(img)
+}
+
+// DecodeManifest unmarshals the image manifest from the given memory buffer.
+func (img *Image) DecodeManifest(data []byte) (err error) {
+	if err = json.Unmarshal(data, img); err != nil {
+		return
+	}
+
+	return img.decodeExtendedMetadata()
 }
 
 func (img *Image) decodeExtendedMetadata() error {
